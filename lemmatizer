@@ -1,0 +1,44 @@
+import os
+import spacy
+import re
+import tqdm
+
+nlp = spacy.load("it_core_news_lg")
+nlp.max_length = 10**10
+allowed_re = re.compile(r'[a-zA-ZàèéìòùÀÈÉÌÒÙ0-9]')
+
+input_folder = "input_folder_name "
+output_folder = "output_folder_name"
+
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+
+def prepare_italian_text(input_file, output_file):
+    pos_dict = {'PROPN': 'person1', 'PRON': 'pron1', 'NUM': 'ordinal1'}
+    fin = open(input_file, 'r', encoding='utf8')
+    with open(output_file, 'w', encoding='utf-8') as prepared_text:
+        for line in fin:
+            nlp_doc = nlp(line)
+            for token in nlp_doc:
+                if token.pos_ in pos_dict:
+                    prepared_text.write(pos_dict[token.pos_])
+                    prepared_text.write(' ')
+                elif token.lemma_.isdigit():
+                    prepared_text.write('ordinal1 ')
+                elif token.pos_ != 'PUNCT':
+                    lemma = token.lemma_.lower() + ' '
+                    if allowed_re.match(lemma):
+                        prepared_text.write(lemma)
+            prepared_text.write('\n')
+
+
+files = [f for f in os.listdir(input_folder) if f.endswith('.txt')]
+
+for filename in tqdm.tqdm(files):
+    input_path = os.path.join(input_folder, filename)
+    output_path = os.path.join(output_folder, filename)
+
+    if os.path.exists(output_path):
+        continue      
+prepare_italian_text(input_path, output_path)
