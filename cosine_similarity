@@ -1,0 +1,38 @@
+import numpy as np
+from scipy.spatial.distance import cosine
+
+cbow = np.load('cbow_dictionary.npy', allow_pickle=True).item()
+svd1 = np.load('SVD_dictionary.npy', allow_pickle=True).item()
+
+svd = {word: vec[:100] for word, vec in svd1.items()}
+
+
+def print_top10(word, embeddings):
+    if word not in embeddings:
+        raise ValueError(f"Слово '{word}' отсутствует в словаре")
+
+    target_vector = embeddings[word]
+
+    # Вычисляем косинусные расстояния
+    similarities = {}
+    for other_word, vector in embeddings.items():
+        if other_word == word:
+            continue
+        similarities[other_word] = cosine(target_vector, vector)
+
+    # Сортируем по возрастанию расстояния
+    top_10 = sorted(similarities.items(), key=lambda x: x[1])[:10]
+
+    # Выводим топ-10 слов
+    for word, score in top_10:
+        print(f"{word}: {score:.4f}")
+    print()
+
+
+word = 'your_word_here'
+print(f'Слово: {word}')
+print(f'Эмбеддинги SVD:')
+print_top10(word, svd)
+print(f'Эмбеддинги CBOW:')
+print_top10(word, cbow)
+print('\n')
