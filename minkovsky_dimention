@@ -1,0 +1,92 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+from matplotlib.widgets import SpanSelector
+from mpl_toolkits.mplot3d import Axes3D
+
+
+def fractal_dimension(array, max_box_size=None, min_box_size=1, n_samples=20, n_offsets=0, plot=False):
+    """Calculates the fractal dimension of a 3D numpy array.
+
+    Args:
+        array (np.ndarray): The array to calculate the fractal dimension of.
+        max_box_size (int): The largest box size, given as the power of 2 so that
+                            2**max_box_size gives the sidelength of the largest box.
+        min_box_size (int): The smallest box size, given as the power of 2 so that
+                            2**min_box_size gives the sidelength of the smallest box.
+                            Default value 1.
+        n_samples (int): number of scales to measure over.
+        n_offsets (int): number of offsets to search over to find the smallest set N(s) to
+                       cover  all voxels>0.
+        plot (bool): set to true to see the analytical plot of a calculation.
+
+
+    """
+
+    dim = array.ndim
+
+    # determine the scales to measure on
+    if max_box_size == None:
+        # default max size is the largest power of 2 that fits in the smallest dimension of the array:
+        max_box_size = int(np.floor(np.log2(np.min(array.shape))))
+    scales = np.logspace(max_box_size, min_box_size, num=n_samples, base=2)
+    scales = np.unique(scales)  # remove duplicates that could occur as a result of the floor
+
+    # nonzero coordinates
+    coords = np.array(np.nonzero(array)).T
+    if coords.size == 0:
+        raise ValueError("Массив не содержит ненулевых значений.")
+
+    # count the minimum amount of boxes touched
+    Ns = []
+    # loop over all scales
+    print(scales)
+    for scale in scales:
+        touched = []
+        if n_offsets == 0:
+            offsets = [np.zeros(1) for _ in range(dim)]
+        else:
+
+            offsets = [np.linspace(0, scale, n_offsets, endpoint=False) for _ in range(dim)]
+        # search over all offsets
+        for offset_combination in np.array(np.meshgrid(*offsets)).T.reshape(-1, dim):
+            shifted_coords = coords + offset_combination
+            indices = np.floor(shifted_coords / scale).astype(int)
+            unique_boxes = np.unique(indices, axis=0)
+            touched.append(len(unique_boxes))
+        Ns.append(min(touched))
+    Ns = np.array(Ns)
+    valid = Ns > 0
+    Ns = Ns[valid]
+    scales = scales[valid]
+
+    # perform fit
+    coeffs = np.polyfit(np.log(1 / scales), np.log(Ns), 1)
+
+    log_eps = np.log(1 / scales)
+    log_Ns = np.log(Ns)
+    # make plot
+    if plot:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.scatter(log_eps, np.log(Ns), c="teal", label="Measured ratios")
+        fit_line, = ax.plot(log_eps, np.polyval(coeffs, log_eps), "k--", label=f"Fit: D={coeffs[0]:.3f}")
+        ax.set_ylabel("log N(ε)")
+        ax.set_xlabel("log 1/ε")
+        ax.legend()
+
+        def on_select(xmin, xmax):
+            mask = (np.log(1 / scales) >= xmin) & (log_eps <= xmax)
+            if np.sum(mask) < 2:
+                return
+            new_fit = np.polyfit(log_eps[mask], log_Ns[mask], 1)
+            new_line = np.polyval(new_fit, log_eps)
+            fit_line.set_ydata(new_line)
+            fit_line.set_label(f"Fit: D={new_fit[0]:.3f}")
+            ax.legend()
+            fig.canvas.draw_idle()
+
+        span = SpanSelector(ax, on_select, 'horizontal', useblit=True,
+                            props=dict(alpha=0.3, facecolor='red'))
+
+        plt.show()
+    return (coeffs[0])
